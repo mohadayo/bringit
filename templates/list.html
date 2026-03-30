@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.List.Title}} - BringIt</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; color: #333; }
+        .container { max-width: 700px; margin: 0 auto; padding: 20px; }
+        a { color: #2563eb; text-decoration: none; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { font-size: 1.6rem; color: #2563eb; }
+        .desc { color: #666; margin-bottom: 16px; font-size: 0.95rem; }
+
+        /* Share URL */
+        .share-box {
+            background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+            padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+        }
+        .share-box input {
+            flex: 1; background: #fff; border: 1px solid #ddd; border-radius: 6px;
+            padding: 8px 12px; font-size: 0.85rem;
+        }
+        .share-box button {
+            padding: 8px 16px; background: #2563eb; color: #fff; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 0.85rem; white-space: nowrap;
+        }
+        .share-box button:hover { background: #1d4ed8; }
+
+        /* Progress */
+        .progress-bar { background: #e5e7eb; border-radius: 99px; height: 8px; margin-bottom: 20px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #22c55e; border-radius: 99px; transition: width 0.3s; }
+        .progress-text { text-align: right; font-size: 0.8rem; color: #888; margin-bottom: 6px; }
+
+        /* Add form */
+        .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px; }
+        .add-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+        .add-form .field { display: flex; flex-direction: column; gap: 4px; }
+        .add-form .field label { font-size: 0.75rem; font-weight: 600; color: #666; }
+        .add-form input[type="text"] { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+        .add-form .field-name { flex: 2; min-width: 140px; }
+        .add-form .field-assignee { flex: 1; min-width: 100px; }
+        .add-form .field-required { display: flex; align-items: center; gap: 4px; padding-top: 20px; font-size: 0.85rem; }
+        .add-form .btn-add {
+            padding: 8px 20px; background: #2563eb; color: #fff; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600; margin-top: auto;
+        }
+        .add-form .btn-add:hover { background: #1d4ed8; }
+
+        /* Item list */
+        .item { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+        .item:last-child { border-bottom: none; }
+        .item.prepared { opacity: 0.6; }
+        .item.prepared .item-name { text-decoration: line-through; }
+        .item-check form { display: inline; }
+        .item-check button {
+            width: 28px; height: 28px; border-radius: 50%; border: 2px solid #d1d5db;
+            background: #fff; cursor: pointer; font-size: 0.9rem; display: flex;
+            align-items: center; justify-content: center;
+        }
+        .item-check button.checked { background: #22c55e; border-color: #22c55e; color: #fff; }
+        .item-body { flex: 1; min-width: 0; }
+        .item-name { font-weight: 600; font-size: 0.95rem; }
+        .badge {
+            display: inline-block; font-size: 0.7rem; padding: 2px 8px;
+            border-radius: 99px; margin-left: 6px; font-weight: 600;
+        }
+        .badge-required { background: #fef2f2; color: #dc2626; }
+        .badge-optional { background: #f0fdf4; color: #16a34a; }
+        .item-assignee { font-size: 0.85rem; color: #666; margin-top: 2px; }
+
+        /* Item actions */
+        .item-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+        .item-actions form { display: inline; }
+        .item-actions button, .item-actions input[type="submit"] {
+            padding: 4px 10px; border: 1px solid #e5e7eb; background: #fff;
+            border-radius: 6px; cursor: pointer; font-size: 0.75rem; color: #666;
+        }
+        .item-actions button:hover, .item-actions input[type="submit"]:hover { background: #f9fafb; }
+        .item-actions .btn-delete { color: #dc2626; border-color: #fecaca; }
+        .item-actions .btn-delete:hover { background: #fef2f2; }
+
+        /* Assignee inline form */
+        .assignee-form { display: flex; gap: 4px; }
+        .assignee-form input { width: 80px; padding: 3px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8rem; }
+
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{.List.Title}}</h1>
+            <a href="/">+ 新規リスト</a>
+        </div>
+
+        {{if .List.Description}}
+        <p class="desc">{{.List.Description}}</p>
+        {{end}}
+
+        <!-- Share URL -->
+        <div class="share-box">
+            <span>&#x1f517;</span>
+            <input type="text" id="share-url" value="{{.ShareURL}}" readonly>
+            <button onclick="copyURL()">コピー</button>
+        </div>
+
+        <!-- Progress -->
+        {{$pct := progress .List.Items}}
+        <div class="progress-text">準備状況: {{$pct}}%（{{len .List.Items}}件）</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:{{$pct}}%"></div></div>
+
+        <!-- Add Item -->
+        <div class="card">
+            <form action="/lists/{{.List.ShareToken}}/items" method="POST" class="add-form">
+                <div class="field field-name">
+                    <label>アイテム名</label>
+                    <input type="text" name="name" placeholder="例: テント" required>
+                </div>
+                <div class="field field-assignee">
+                    <label>担当者</label>
+                    <input type="text" name="assignee" placeholder="例: 太郎">
+                </div>
+                <div class="field field-required">
+                    <input type="checkbox" name="required" id="req-check" checked>
+                    <label for="req-check">必須</label>
+                </div>
+                <button type="submit" class="btn-add">追加</button>
+            </form>
+        </div>
+
+        <!-- Items -->
+        <div class="card">
+            {{if .List.Items}}
+                {{range .List.Items}}
+                <div class="item {{if .Prepared}}prepared{{end}}">
+                    <div class="item-check">
+                        <form action="/lists/{{$.List.ShareToken}}/items/{{.ID}}/toggle-prepared" method="POST">
+                            <button type="submit" class="{{if .Prepared}}checked{{end}}" title="準備済み切替">
+                                {{if .Prepared}}&#x2713;{{end}}
+                            </button>
+                        </form>
+                    </div>
+                    <div class="item-body">
+                        <div>
+                            <span class="item-name">{{.Name}}</span>
+                            {{if .Required}}
+                                <span class="badge badge-required">必須</span>
+                            {{else}}
+                                <span class="badge badge-optional">任意</span>
+                            {{end}}
+                        </div>
+                        {{if .Assignee}}
+                        <div class="item-assignee">&#x1f464; {{.Assignee}}</div>
+                        {{else}}
+                        <div class="item-assignee" style="color:#f59e0b;">&#x26a0; 未割当</div>
+                        {{end}}
+                    </div>
+                    <div class="item-actions">
+                        <form action="/lists/{{$.List.ShareToken}}/items/{{.ID}}/assignee" method="POST" class="assignee-form">
+                            <input type="text" name="assignee" placeholder="担当者" value="{{.Assignee}}">
+                            <input type="submit" value="変更">
+                        </form>
+                        <form action="/lists/{{$.List.ShareToken}}/items/{{.ID}}/toggle-required" method="POST">
+                            <button type="submit">{{if .Required}}任意に{{else}}必須に{{end}}</button>
+                        </form>
+                        <form action="/lists/{{$.List.ShareToken}}/items/{{.ID}}/delete" method="POST">
+                            <button type="submit" class="btn-delete">削除</button>
+                        </form>
+                    </div>
+                </div>
+                {{end}}
+            {{else}}
+                <div class="empty-state">
+                    <p>まだアイテムがありません。上のフォームから追加しましょう！</p>
+                </div>
+            {{end}}
+        </div>
+    </div>
+
+    <script>
+    function copyURL() {
+        const input = document.getElementById('share-url');
+        input.select();
+        navigator.clipboard.writeText(input.value);
+        const btn = input.nextElementSibling;
+        btn.textContent = 'コピー済';
+        setTimeout(() => btn.textContent = 'コピー', 1500);
+    }
+    </script>
+</body>
+</html>
