@@ -58,6 +58,16 @@ func handleCreateList(store *Store) http.HandlerFunc {
 	}
 }
 
+func detectScheme(r *http.Request) string {
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
 func handleShowList(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
@@ -66,9 +76,10 @@ func handleShowList(store *Store) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
+		scheme := detectScheme(r)
 		data := map[string]any{
 			"List":     l,
-			"ShareURL": "http://" + r.Host + "/lists/" + l.ShareToken,
+			"ShareURL": scheme + "://" + r.Host + "/lists/" + l.ShareToken,
 		}
 		if err := tmpl.ExecuteTemplate(w, "list.html", data); err != nil {
 			log.Printf("error rendering list template: token=%s err=%v", token, err)
