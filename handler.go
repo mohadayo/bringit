@@ -2,6 +2,7 @@ package main
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -37,7 +38,10 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	tmpl.ExecuteTemplate(w, "index.html", nil)
+	if err := tmpl.ExecuteTemplate(w, "index.html", nil); err != nil {
+		log.Printf("error rendering index template: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func handleCreateList(store *Store) http.HandlerFunc {
@@ -49,8 +53,19 @@ func handleCreateList(store *Store) http.HandlerFunc {
 		}
 		desc := strings.TrimSpace(r.FormValue("description"))
 		l := store.CreateList(title, desc)
+		log.Printf("list created: token=%s title=%q", l.ShareToken, title)
 		http.Redirect(w, r, "/lists/"+l.ShareToken, http.StatusSeeOther)
 	}
+}
+
+func detectScheme(r *http.Request) string {
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
 }
 
 func handleShowList(store *Store) http.HandlerFunc {
@@ -61,17 +76,25 @@ func handleShowList(store *Store) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
+		scheme := detectScheme(r)
 		data := map[string]any{
 			"List":     l,
-			"ShareURL": "http://" + r.Host + "/lists/" + l.ShareToken,
+			"ShareURL": scheme + "://" + r.Host + "/lists/" + l.ShareToken,
 		}
-		tmpl.ExecuteTemplate(w, "list.html", data)
+		if err := tmpl.ExecuteTemplate(w, "list.html", data); err != nil {
+			log.Printf("error rendering list template: token=%s err=%v", token, err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
 	}
 }
 
 func handleAddItem(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if store.GetList(token) == nil {
+			http.NotFound(w, r)
+			return
+		}
 		name := strings.TrimSpace(r.FormValue("name"))
 		if name == "" {
 			http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -80,6 +103,7 @@ func handleAddItem(store *Store) http.HandlerFunc {
 		assignee := strings.TrimSpace(r.FormValue("assignee"))
 		required := r.FormValue("required") == "on"
 		store.AddItem(token, name, assignee, required)
+		log.Printf("item added: token=%s name=%q assignee=%q", token, name, assignee)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
 	}
 }
@@ -89,6 +113,7 @@ func handleTogglePrepared(store *Store) http.HandlerFunc {
 		token := r.PathValue("token")
 		id := r.PathValue("id")
 		store.TogglePrepared(token, id)
+		log.Printf("item toggle-prepared: token=%s id=%s", token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
 	}
 }
@@ -98,6 +123,7 @@ func handleToggleRequired(store *Store) http.HandlerFunc {
 		token := r.PathValue("token")
 		id := r.PathValue("id")
 		store.ToggleRequired(token, id)
+		log.Printf("item toggle-required: token=%s id=%s", token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
 	}
 }
@@ -108,6 +134,7 @@ func handleUpdateAssignee(store *Store) http.HandlerFunc {
 		id := r.PathValue("id")
 		assignee := strings.TrimSpace(r.FormValue("assignee"))
 		store.UpdateAssignee(token, id, assignee)
+		log.Printf("item assignee updated: token=%s id=%s assignee=%q", token, id, assignee)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
 	}
 }
@@ -117,6 +144,7 @@ func handleDeleteItem(store *Store) http.HandlerFunc {
 		token := r.PathValue("token")
 		id := r.PathValue("id")
 		store.DeleteItem(token, id)
+		log.Printf("item deleted: token=%s id=%s", token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
 	}
 }
