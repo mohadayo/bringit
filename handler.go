@@ -2,6 +2,7 @@ package main
 
 import (
 	"html/template"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -30,6 +31,7 @@ func registerRoutes(mux *http.ServeMux, store *Store) {
 	mux.HandleFunc("POST /lists/{token}/items/{id}/toggle-required", handleToggleRequired(store))
 	mux.HandleFunc("POST /lists/{token}/items/{id}/assignee", handleUpdateAssignee(store))
 	mux.HandleFunc("POST /lists/{token}/items/{id}/delete", handleDeleteItem(store))
+	mux.HandleFunc("POST /lists/{token}/delete", handleDeleteList(store))
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +39,10 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	tmpl.ExecuteTemplate(w, "index.html", nil)
+	if err := tmpl.ExecuteTemplate(w, "index.html", nil); err != nil {
+		slog.Error("テンプレート描画エラー", "template", "index.html", "error", err)
+		http.Error(w, "テンプレートの描画に失敗しました", http.StatusInternalServerError)
+	}
 }
 
 func handleCreateList(store *Store) http.HandlerFunc {
@@ -65,7 +70,10 @@ func handleShowList(store *Store) http.HandlerFunc {
 			"List":     l,
 			"ShareURL": "http://" + r.Host + "/lists/" + l.ShareToken,
 		}
-		tmpl.ExecuteTemplate(w, "list.html", data)
+		if err := tmpl.ExecuteTemplate(w, "list.html", data); err != nil {
+			slog.Error("テンプレート描画エラー", "template", "list.html", "error", err)
+			http.Error(w, "テンプレートの描画に失敗しました", http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -118,5 +126,16 @@ func handleDeleteItem(store *Store) http.HandlerFunc {
 		id := r.PathValue("id")
 		store.DeleteItem(token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
+	}
+}
+
+func handleDeleteList(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := r.PathValue("token")
+		if !store.DeleteList(token) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 	}
 }
