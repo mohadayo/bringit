@@ -26,7 +26,9 @@ func (s *Store) genID() string {
 
 func generateToken() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("乱数生成に失敗しました: " + err.Error())
+	}
 	return hex.EncodeToString(b)
 }
 
@@ -61,10 +63,11 @@ func (s *Store) AddItem(token, name, assignee string, required bool) *Item {
 		return nil
 	}
 	item := &Item{
-		ID:       s.genID(),
-		Name:     name,
-		Assignee: assignee,
-		Required: required,
+		ID:        s.genID(),
+		Name:      name,
+		Assignee:  assignee,
+		Required:  required,
+		UpdatedAt: time.Now(),
 	}
 	l.Items = append(l.Items, item)
 	return item
@@ -88,6 +91,7 @@ func (s *Store) TogglePrepared(token, itemID string) {
 	defer s.mu.Unlock()
 	if it := s.findItem(token, itemID); it != nil {
 		it.Prepared = !it.Prepared
+		it.UpdatedAt = time.Now()
 	}
 }
 
@@ -96,6 +100,7 @@ func (s *Store) ToggleRequired(token, itemID string) {
 	defer s.mu.Unlock()
 	if it := s.findItem(token, itemID); it != nil {
 		it.Required = !it.Required
+		it.UpdatedAt = time.Now()
 	}
 }
 
@@ -104,7 +109,19 @@ func (s *Store) UpdateAssignee(token, itemID, assignee string) {
 	defer s.mu.Unlock()
 	if it := s.findItem(token, itemID); it != nil {
 		it.Assignee = assignee
+		it.UpdatedAt = time.Now()
 	}
+}
+
+// DeleteList はトークンに対応するリストを削除する。削除に成功した場合は true を返す。
+func (s *Store) DeleteList(token string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.lists[token]; !ok {
+		return false
+	}
+	delete(s.lists, token)
+	return true
 }
 
 func (s *Store) DeleteItem(token, itemID string) {

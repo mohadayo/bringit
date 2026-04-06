@@ -14,9 +14,10 @@ type List struct {
 
 // Item represents a single item in a packing list.
 type Item struct {
-	ID       string
-	Name     string
-	Assignee string
-	Required bool
-	Prepared bool
+	ID        string
+	Name      string
+	Assignee  string
+	Required  bool
+	Prepared  bool
+	UpdatedAt time.Time // アイテムの最終更新日時
 }
