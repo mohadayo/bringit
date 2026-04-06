@@ -164,3 +164,161 @@ func TestCreateListEmptyTitle(t *testing.T) {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
 }
+
+func TestCreateListWhitespaceTitle(t *testing.T) {
+	mux, _ := setupTestServer()
+	form := url.Values{"title": {"   "}}
+	req := httptest.NewRequest("POST", "/lists", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for whitespace-only title, got %d", w.Code)
+	}
+}
+
+func TestDeleteList(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("削除テスト", "")
+	token := l.ShareToken
+
+	req := httptest.NewRequest("POST", "/lists/"+token+"/delete", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/" {
+		t.Fatalf("expected redirect to /, got %s", loc)
+	}
+	if store.GetList(token) != nil {
+		t.Fatal("expected list to be deleted from store")
+	}
+}
+
+func TestDeleteListNotFound(t *testing.T) {
+	mux, _ := setupTestServer()
+	req := httptest.NewRequest("POST", "/lists/nonexistent-token/delete", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestAddItemEmptyName(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	token := l.ShareToken
+
+	form := url.Values{"name": {""}, "assignee": {"太郎"}}
+	req := httptest.NewRequest("POST", "/lists/"+token+"/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	// Should redirect without adding item
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d", w.Code)
+	}
+	if len(store.GetList(token).Items) != 0 {
+		t.Fatal("expected no items to be added for empty name")
+	}
+}
+
+func TestAddItemWhitespaceName(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	token := l.ShareToken
+
+	form := url.Values{"name": {"   "}}
+	req := httptest.NewRequest("POST", "/lists/"+token+"/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d", w.Code)
+	}
+	if len(store.GetList(token).Items) != 0 {
+		t.Fatal("expected no items to be added for whitespace-only name")
+	}
+}
+
+func TestTogglePreparedInvalidItem(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	token := l.ShareToken
+
+	req := httptest.NewRequest("POST", "/lists/"+token+"/items/nonexistent-id/toggle-prepared", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	// Handler should redirect gracefully even for invalid item ID
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect for invalid item ID, got %d", w.Code)
+	}
+}
+
+func TestToggleRequiredInvalidItem(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	token := l.ShareToken
+
+	req := httptest.NewRequest("POST", "/lists/"+token+"/items/nonexistent-id/toggle-required", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect for invalid item ID, got %d", w.Code)
+	}
+}
+
+func TestUpdateAssigneeInvalidItem(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	token := l.ShareToken
+
+	form := url.Values{"assignee": {"花子"}}
+	req := httptest.NewRequest("POST", "/lists/"+token+"/items/nonexistent-id/assignee", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect for invalid item ID, got %d", w.Code)
+	}
+}
+
+func TestDeleteItemInvalidItem(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	store.AddItem(l.ShareToken, "アイテム", "", true)
+	token := l.ShareToken
+
+	req := httptest.NewRequest("POST", "/lists/"+token+"/items/nonexistent-id/delete", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 redirect for invalid item ID, got %d", w.Code)
+	}
+	// Existing item should still be there
+	if len(store.GetList(token).Items) != 1 {
+		t.Fatal("expected existing item to remain after deleting nonexistent ID")
+	}
+}
+
+func TestIndexPageNotFound(t *testing.T) {
+	mux, _ := setupTestServer()
+	req := httptest.NewRequest("GET", "/nonexistent-path", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown path, got %d", w.Code)
+	}
+}
