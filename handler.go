@@ -1,11 +1,16 @@
 package main
 
 import (
+	"encoding/json"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 )
+
+// startTime はサーバー起動時刻を記録する。
+var startTime = time.Now()
 
 var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 	"progress": func(items []*Item) int {
@@ -23,6 +28,7 @@ var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 }).ParseGlob("templates/*.html"))
 
 func registerRoutes(mux *http.ServeMux, store *Store) {
+	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("GET /", handleIndex)
 	mux.HandleFunc("POST /lists", handleCreateList(store))
 	mux.HandleFunc("GET /lists/{token}", handleShowList(store))
@@ -32,6 +38,17 @@ func registerRoutes(mux *http.ServeMux, store *Store) {
 	mux.HandleFunc("POST /lists/{token}/items/{id}/assignee", handleUpdateAssignee(store))
 	mux.HandleFunc("POST /lists/{token}/items/{id}/delete", handleDeleteItem(store))
 	mux.HandleFunc("POST /lists/{token}/delete", handleDeleteList(store))
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{ //nolint:errcheck
+		"status":    "ok",
+		"service":   "bringit",
+		"uptime":    time.Since(startTime).Round(time.Second).String(),
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	})
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
