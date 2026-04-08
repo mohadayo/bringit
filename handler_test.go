@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,6 +14,33 @@ func setupTestServer() (*http.ServeMux, *Store) {
 	mux := http.NewServeMux()
 	registerRoutes(mux, store)
 	return mux, store
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	mux, _ := setupTestServer()
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Fatalf("expected application/json content-type, got %s", ct)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode JSON: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Fatalf("expected status=ok, got %s", body["status"])
+	}
+	if body["service"] != "bringit" {
+		t.Fatalf("expected service=bringit, got %s", body["service"])
+	}
+	if body["timestamp"] == "" {
+		t.Fatal("expected non-empty timestamp")
+	}
 }
 
 func TestIndexPage(t *testing.T) {
