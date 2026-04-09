@@ -350,3 +350,26 @@ func TestIndexPageNotFound(t *testing.T) {
 		t.Fatalf("expected 404 for unknown path, got %d", w.Code)
 	}
 }
+
+func TestRequestLoggerMiddleware(t *testing.T) {
+	mux, _ := setupTestServer()
+	handler := requestLogger(mux)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 through middleware, got %d", w.Code)
+	}
+}
+
+func TestResponseWriterStatusCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+	rw.WriteHeader(http.StatusNotFound)
+	if rw.statusCode != http.StatusNotFound {
+		t.Fatalf("expected statusCode=404, got %d", rw.statusCode)
+	}
+}

@@ -9,6 +9,33 @@ import (
 	"time"
 )
 
+// responseWriter はステータスコードを記録するためのラッパー。
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// requestLogger はリクエストのメソッド・パス・ステータス・所要時間をログ出力するミドルウェア。
+func requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(rw, r)
+		slog.Info("リクエスト処理",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", rw.statusCode,
+			"duration", time.Since(start).String(),
+			"remote", r.RemoteAddr,
+		)
+	})
+}
+
 // startTime はサーバー起動時刻を記録する。
 var startTime = time.Now()
 
