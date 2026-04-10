@@ -373,3 +373,131 @@ func TestResponseWriterStatusCode(t *testing.T) {
 		t.Fatalf("expected statusCode=404, got %d", rw.statusCode)
 	}
 }
+
+func TestTruncateRunes(t *testing.T) {
+	tests := []struct {
+		input    string
+		maxLen   int
+		expected string
+	}{
+		{"hello", 10, "hello"},
+		{"hello", 3, "hel"},
+		{"あいうえお", 3, "あいう"},
+		{"", 5, ""},
+		{"abc", 0, ""},
+		{"テスト文字列", 6, "テスト文字列"},
+		{"テスト文字列", 4, "テスト文"},
+	}
+	for _, tt := range tests {
+		result := truncateRunes(tt.input, tt.maxLen)
+		if result != tt.expected {
+			t.Errorf("truncateRunes(%q, %d) = %q, want %q", tt.input, tt.maxLen, result, tt.expected)
+		}
+	}
+}
+
+func TestCreateListTitleTruncation(t *testing.T) {
+	mux, store := setupTestServer()
+
+	// 101文字のタイトル（最大100文字に切り詰められる）
+	longTitle := strings.Repeat("あ", 101)
+	form := url.Values{"title": {longTitle}}
+	req := httptest.NewRequest("POST", "/lists", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d", w.Code)
+	}
+
+	loc := w.Header().Get("Location")
+	token := strings.TrimPrefix(loc, "/lists/")
+	l := store.GetList(token)
+	if l == nil {
+		t.Fatal("expected list to be created")
+	}
+	titleRunes := []rune(l.Title)
+	if len(titleRunes) != maxTitleLen {
+		t.Fatalf("expected title to be truncated to %d runes, got %d", maxTitleLen, len(titleRunes))
+	}
+}
+
+func TestCreateListDescriptionTruncation(t *testing.T) {
+	mux, store := setupTestServer()
+
+	longDesc := strings.Repeat("x", 501)
+	form := url.Values{"title": {"テスト"}, "description": {longDesc}}
+	req := httptest.NewRequest("POST", "/lists", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	loc := w.Header().Get("Location")
+	token := strings.TrimPrefix(loc, "/lists/")
+	l := store.GetList(token)
+	if len(l.Description) != maxDescriptionLen {
+		t.Fatalf("expected description to be truncated to %d chars, got %d", maxDescriptionLen, len(l.Description))
+	}
+}
+
+func TestAddItemNameTruncation(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	token := l.ShareToken
+
+	longName := strings.Repeat("い", 150)
+	form := url.Values{"name": {longName}, "assignee": {"太郎"}}
+	req := httptest.NewRequest("POST", "/lists/"+token+"/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	items := store.GetList(token).Items
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	nameRunes := []rune(items[0].Name)
+	if len(nameRunes) != maxItemNameLen {
+		t.Fatalf("expected item name to be truncated to %d runes, got %d", maxItemNameLen, len(nameRunes))
+	}
+}
+
+func TestAddItemAssigneeTruncation(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	token := l.ShareToken
+
+	longAssignee := strings.Repeat("う", 80)
+	form := url.Values{"name": {"アイテム"}, "assignee": {longAssignee}}
+	req := httptest.NewRequest("POST", "/lists/"+token+"/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	items := store.GetList(token).Items
+	assigneeRunes := []rune(items[0].Assignee)
+	if len(assigneeRunes) != maxAssigneeLen {
+		t.Fatalf("expected assignee to be truncated to %d runes, got %d", maxAssigneeLen, len(assigneeRunes))
+	}
+}
+
+func TestUpdateAssigneeTruncation(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	store.AddItem(l.ShareToken, "アイテム", "太郎", true)
+
+	item := store.GetList(l.ShareToken).Items[0]
+	longAssignee := strings.Repeat("え", 60)
+	form := url.Values{"assignee": {longAssignee}}
+	req := httptest.NewRequest("POST", "/lists/"+l.ShareToken+"/items/"+item.ID+"/assignee", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	updated := store.GetList(l.ShareToken).Items[0]
+	assigneeRunes := []rune(updated.Assignee)
+	if len(assigneeRunes) != maxAssigneeLen {
+		t.Fatalf("expected assignee to be truncated to %d runes, got %d", maxAssigneeLen, len(assigneeRunes))
+	}
+}

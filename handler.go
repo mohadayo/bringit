@@ -89,6 +89,23 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// 入力値の最大文字数制限。
+const (
+	maxTitleLen       = 100
+	maxDescriptionLen = 500
+	maxItemNameLen    = 100
+	maxAssigneeLen    = 50
+)
+
+// truncateRunes は文字列を最大 n ルーン以内に切り詰める。
+func truncateRunes(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) > n {
+		return string(runes[:n])
+	}
+	return s
+}
+
 func handleCreateList(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		title := strings.TrimSpace(r.FormValue("title"))
@@ -96,7 +113,8 @@ func handleCreateList(store *Store) http.HandlerFunc {
 			http.Error(w, "タイトルは必須です", http.StatusBadRequest)
 			return
 		}
-		desc := strings.TrimSpace(r.FormValue("description"))
+		title = truncateRunes(title, maxTitleLen)
+		desc := truncateRunes(strings.TrimSpace(r.FormValue("description")), maxDescriptionLen)
 		l := store.CreateList(title, desc)
 		http.Redirect(w, r, "/lists/"+l.ShareToken, http.StatusSeeOther)
 	}
@@ -129,7 +147,8 @@ func handleAddItem(store *Store) http.HandlerFunc {
 			http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
 			return
 		}
-		assignee := strings.TrimSpace(r.FormValue("assignee"))
+		name = truncateRunes(name, maxItemNameLen)
+		assignee := truncateRunes(strings.TrimSpace(r.FormValue("assignee")), maxAssigneeLen)
 		required := r.FormValue("required") == "on"
 		store.AddItem(token, name, assignee, required)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -158,7 +177,7 @@ func handleUpdateAssignee(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
 		id := r.PathValue("id")
-		assignee := strings.TrimSpace(r.FormValue("assignee"))
+		assignee := truncateRunes(strings.TrimSpace(r.FormValue("assignee")), maxAssigneeLen)
 		store.UpdateAssignee(token, id, assignee)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
 	}
