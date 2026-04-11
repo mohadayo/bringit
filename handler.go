@@ -130,7 +130,7 @@ func handleShowList(store *Store) http.HandlerFunc {
 		}
 		data := map[string]any{
 			"List":     l,
-			"ShareURL": "http://" + r.Host + "/lists/" + l.ShareToken,
+			"ShareURL": buildShareURL(r, l.ShareToken),
 		}
 		if err := tmpl.ExecuteTemplate(w, "list.html", data); err != nil {
 			slog.Error("テンプレート描画エラー", "template", "list.html", "error", err)
