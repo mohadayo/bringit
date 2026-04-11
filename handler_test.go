@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -348,5 +349,76 @@ func TestIndexPageNotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for unknown path, got %d", w.Code)
+	}
+}
+
+func TestSecurityHeaders(t *testing.T) {
+	mux, _ := setupTestServer()
+	handler := securityHeaders(mux)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	tests := map[string]string{
+		"X-Content-Type-Options": "nosniff",
+		"X-Frame-Options":       "DENY",
+		"Referrer-Policy":       "strict-origin-when-cross-origin",
+		"Permissions-Policy":    "camera=(), microphone=(), geolocation=()",
+	}
+	for header, expected := range tests {
+		got := w.Header().Get(header)
+		if got != expected {
+			t.Errorf("header %s: expected %q, got %q", header, expected, got)
+		}
+	}
+}
+
+func TestBuildShareURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		proto    string // X-Forwarded-Proto
+		useTLS   bool
+		host     string
+		token    string
+		expected string
+	}{
+		{
+			name:     "デフォルトHTTP",
+			host:     "example.com",
+			token:    "abc123",
+			expected: "http://example.com/lists/abc123",
+		},
+		{
+			name:     "X-Forwarded-ProtoでHTTPS",
+			proto:    "https",
+			host:     "example.com",
+			token:    "abc123",
+			expected: "https://example.com/lists/abc123",
+		},
+		{
+			name:     "TLS接続でHTTPS",
+			useTLS:   true,
+			host:     "example.com:443",
+			token:    "xyz",
+			expected: "https://example.com:443/lists/xyz",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Host = tt.host
+			if tt.proto != "" {
+				req.Header.Set("X-Forwarded-Proto", tt.proto)
+			}
+			if tt.useTLS {
+				req.TLS = &tls.ConnectionState{}
+			}
+			got := buildShareURL(req, tt.token)
+			if got != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, got)
+			}
+		})
 	}
 }
