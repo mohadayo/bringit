@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -15,6 +16,15 @@ import (
 func getEnv(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return defaultVal
+}
+
+func getEnvInt(key string, defaultVal int) int {
+	if v := os.Getenv(key); v != ""; {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
 	}
 	return defaultVal
 }
@@ -47,10 +57,13 @@ func main() {
 	mux := http.NewServeMux()
 	registerRoutes(mux, store)
 
+	rl := newRateLimiter(getEnvInt("RATE_LIMIT", 60), time.Minute)
+	rl.startCleanup()
+
 	addr := ":" + getEnv("PORT", "8080")
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      securityHeaders(requestLogger(mux)),
+		Handler:      securityHeaders(rateLimitMiddleware(rl)(requestLogger(mux))),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
