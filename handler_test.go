@@ -503,6 +503,65 @@ func TestUpdateAssigneeTruncation(t *testing.T) {
 	}
 }
 
+func TestHandlerAddItemToNonExistentList(t *testing.T) {
+	mux, _ := setupTestServer()
+	form := url.Values{"name": {"テント"}, "assignee": {"太郎"}}
+	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for adding item to non-existent list, got %d", w.Code)
+	}
+}
+
+func TestTogglePreparedOnNonExistentList(t *testing.T) {
+	mux, _ := setupTestServer()
+	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items/1/toggle-prepared", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for toggle-prepared on non-existent list, got %d", w.Code)
+	}
+}
+
+func TestToggleRequiredOnNonExistentList(t *testing.T) {
+	mux, _ := setupTestServer()
+	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items/1/toggle-required", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for toggle-required on non-existent list, got %d", w.Code)
+	}
+}
+
+func TestUpdateAssigneeOnNonExistentList(t *testing.T) {
+	mux, _ := setupTestServer()
+	form := url.Values{"assignee": {"花子"}}
+	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items/1/assignee", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for update assignee on non-existent list, got %d", w.Code)
+	}
+}
+
+func TestDeleteItemOnNonExistentList(t *testing.T) {
+	mux, _ := setupTestServer()
+	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items/1/delete", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for delete item on non-existent list, got %d", w.Code)
+	}
+}
+
 func TestSecurityHeaders(t *testing.T) {
 	mux, _ := setupTestServer()
 	handler := securityHeaders(mux)
