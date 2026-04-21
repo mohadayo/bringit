@@ -142,6 +142,10 @@ func handleShowList(store *Store) http.HandlerFunc {
 func handleAddItem(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if store.GetList(token) == nil {
+			http.NotFound(w, r)
+			return
+		}
 		name := strings.TrimSpace(r.FormValue("name"))
 		if name == "" {
 			http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -158,6 +162,10 @@ func handleAddItem(store *Store) http.HandlerFunc {
 func handleTogglePrepared(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if store.GetList(token) == nil {
+			http.NotFound(w, r)
+			return
+		}
 		id := r.PathValue("id")
 		store.TogglePrepared(token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -167,6 +175,10 @@ func handleTogglePrepared(store *Store) http.HandlerFunc {
 func handleToggleRequired(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if store.GetList(token) == nil {
+			http.NotFound(w, r)
+			return
+		}
 		id := r.PathValue("id")
 		store.ToggleRequired(token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -176,6 +188,10 @@ func handleToggleRequired(store *Store) http.HandlerFunc {
 func handleUpdateAssignee(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if store.GetList(token) == nil {
+			http.NotFound(w, r)
+			return
+		}
 		id := r.PathValue("id")
 		assignee := truncateRunes(strings.TrimSpace(r.FormValue("assignee")), maxAssigneeLen)
 		store.UpdateAssignee(token, id, assignee)
@@ -186,6 +202,10 @@ func handleUpdateAssignee(store *Store) http.HandlerFunc {
 func handleDeleteItem(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if store.GetList(token) == nil {
+			http.NotFound(w, r)
+			return
+		}
 		id := r.PathValue("id")
 		store.DeleteItem(token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
