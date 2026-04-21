@@ -172,7 +172,7 @@ func TestUpdateAssignee(t *testing.T) {
 
 func TestNotFoundList(t *testing.T) {
 	mux, _ := setupTestServer()
-	req := httptest.NewRequest("GET", "/lists/nonexistent", nil)
+	req := httptest.NewRequest("GET", "/lists/00112233445566778899aabbccddeeff", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -229,7 +229,7 @@ func TestDeleteList(t *testing.T) {
 
 func TestDeleteListNotFound(t *testing.T) {
 	mux, _ := setupTestServer()
-	req := httptest.NewRequest("POST", "/lists/nonexistent-token/delete", nil)
+	req := httptest.NewRequest("POST", "/lists/00112233445566778899aabbccddeeff/delete", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -506,7 +506,7 @@ func TestUpdateAssigneeTruncation(t *testing.T) {
 func TestHandlerAddItemToNonExistentList(t *testing.T) {
 	mux, _ := setupTestServer()
 	form := url.Values{"name": {"テント"}, "assignee": {"太郎"}}
-	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest("POST", "/lists/00112233445566778899aabbccddeeff/items", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -518,7 +518,7 @@ func TestHandlerAddItemToNonExistentList(t *testing.T) {
 
 func TestTogglePreparedOnNonExistentList(t *testing.T) {
 	mux, _ := setupTestServer()
-	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items/1/toggle-prepared", nil)
+	req := httptest.NewRequest("POST", "/lists/00112233445566778899aabbccddeeff/items/1/toggle-prepared", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -529,7 +529,7 @@ func TestTogglePreparedOnNonExistentList(t *testing.T) {
 
 func TestToggleRequiredOnNonExistentList(t *testing.T) {
 	mux, _ := setupTestServer()
-	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items/1/toggle-required", nil)
+	req := httptest.NewRequest("POST", "/lists/00112233445566778899aabbccddeeff/items/1/toggle-required", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -541,7 +541,7 @@ func TestToggleRequiredOnNonExistentList(t *testing.T) {
 func TestUpdateAssigneeOnNonExistentList(t *testing.T) {
 	mux, _ := setupTestServer()
 	form := url.Values{"assignee": {"花子"}}
-	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items/1/assignee", strings.NewReader(form.Encode()))
+	req := httptest.NewRequest("POST", "/lists/00112233445566778899aabbccddeeff/items/1/assignee", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -553,7 +553,7 @@ func TestUpdateAssigneeOnNonExistentList(t *testing.T) {
 
 func TestDeleteItemOnNonExistentList(t *testing.T) {
 	mux, _ := setupTestServer()
-	req := httptest.NewRequest("POST", "/lists/nonexistent-token/items/1/delete", nil)
+	req := httptest.NewRequest("POST", "/lists/00112233445566778899aabbccddeeff/items/1/delete", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -574,7 +574,8 @@ func TestSecurityHeaders(t *testing.T) {
 		"X-Content-Type-Options": "nosniff",
 		"X-Frame-Options":       "DENY",
 		"Referrer-Policy":       "strict-origin-when-cross-origin",
-		"Permissions-Policy":    "camera=(), microphone=(), geolocation=()",
+		"Permissions-Policy":      "camera=(), microphone=(), geolocation=()",
+		"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; form-action 'self'; frame-ancestors 'none'",
 	}
 	for header, expected := range tests {
 		got := w.Header().Get(header)
@@ -630,5 +631,44 @@ func TestBuildShareURL(t *testing.T) {
 				t.Errorf("expected %q, got %q", tt.expected, got)
 			}
 		})
+	}
+}
+
+func TestInvalidTokenFormat(t *testing.T) {
+	mux, _ := setupTestServer()
+	invalidTokens := []string{
+		"short",
+		"../../../etc/passwd",
+		"nonexistent-token",
+		"AABBCCDD11223344AABBCCDD11223344",
+		"gg112233445566778899aabbccddeeff",
+	}
+	for _, token := range invalidTokens {
+		req := httptest.NewRequest("GET", "/lists/"+token, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("GET /lists/%s: expected 400, got %d", token, w.Code)
+		}
+	}
+}
+
+func TestInvalidTokenFormatOnDelete(t *testing.T) {
+	mux, _ := setupTestServer()
+	req := httptest.NewRequest("POST", "/lists/invalid-token/delete", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid token on delete, got %d", w.Code)
+	}
+}
+
+func TestGenerateTokenLength(t *testing.T) {
+	token := generateToken()
+	if len(token) != 32 {
+		t.Fatalf("expected token length 32, got %d", len(token))
+	}
+	if !validToken.MatchString(token) {
+		t.Fatalf("generated token %q does not match expected format", token)
 	}
 }
