@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -53,6 +54,8 @@ var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 		return done * 100 / len(items)
 	},
 }).ParseGlob("templates/*.html"))
+
+var validToken = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 func registerRoutes(mux *http.ServeMux, store *Store) {
 	mux.HandleFunc("GET /health", handleHealth)
@@ -123,6 +126,10 @@ func handleCreateList(store *Store) http.HandlerFunc {
 func handleShowList(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if !validToken.MatchString(token) {
+			http.Error(w, "無効なトークン形式です", http.StatusBadRequest)
+			return
+		}
 		l := store.GetList(token)
 		if l == nil {
 			http.NotFound(w, r)
@@ -142,6 +149,10 @@ func handleShowList(store *Store) http.HandlerFunc {
 func handleAddItem(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if !validToken.MatchString(token) {
+			http.Error(w, "無効なトークン形式です", http.StatusBadRequest)
+			return
+		}
 		name := strings.TrimSpace(r.FormValue("name"))
 		if name == "" {
 			http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -158,6 +169,10 @@ func handleAddItem(store *Store) http.HandlerFunc {
 func handleTogglePrepared(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if !validToken.MatchString(token) {
+			http.Error(w, "無効なトークン形式です", http.StatusBadRequest)
+			return
+		}
 		id := r.PathValue("id")
 		store.TogglePrepared(token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -167,6 +182,10 @@ func handleTogglePrepared(store *Store) http.HandlerFunc {
 func handleToggleRequired(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if !validToken.MatchString(token) {
+			http.Error(w, "無効なトークン形式です", http.StatusBadRequest)
+			return
+		}
 		id := r.PathValue("id")
 		store.ToggleRequired(token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -176,6 +195,10 @@ func handleToggleRequired(store *Store) http.HandlerFunc {
 func handleUpdateAssignee(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if !validToken.MatchString(token) {
+			http.Error(w, "無効なトークン形式です", http.StatusBadRequest)
+			return
+		}
 		id := r.PathValue("id")
 		assignee := truncateRunes(strings.TrimSpace(r.FormValue("assignee")), maxAssigneeLen)
 		store.UpdateAssignee(token, id, assignee)
@@ -186,6 +209,10 @@ func handleUpdateAssignee(store *Store) http.HandlerFunc {
 func handleDeleteItem(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if !validToken.MatchString(token) {
+			http.Error(w, "無効なトークン形式です", http.StatusBadRequest)
+			return
+		}
 		id := r.PathValue("id")
 		store.DeleteItem(token, id)
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
@@ -195,6 +222,10 @@ func handleDeleteItem(store *Store) http.HandlerFunc {
 func handleDeleteList(store *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("token")
+		if !validToken.MatchString(token) {
+			http.Error(w, "無効なトークン形式です", http.StatusBadRequest)
+			return
+		}
 		if !store.DeleteList(token) {
 			http.NotFound(w, r)
 			return
