@@ -25,7 +25,7 @@ func (s *Store) genID() string {
 }
 
 func generateToken() string {
-	b := make([]byte, 8)
+	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		panic("乱数生成に失敗しました: " + err.Error())
 	}
