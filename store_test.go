@@ -156,6 +156,39 @@ func TestConcurrentAddItem(t *testing.T) {
 	}
 }
 
+func TestStoreStats(t *testing.T) {
+	s := NewStore()
+
+	listCount, itemCount := s.Stats()
+	if listCount != 0 || itemCount != 0 {
+		t.Fatalf("expected 0/0, got %d/%d", listCount, itemCount)
+	}
+
+	l1 := s.CreateList("リスト1", "")
+	s.AddItem(l1.ShareToken, "アイテム1", "", true)
+	s.AddItem(l1.ShareToken, "アイテム2", "", false)
+
+	l2 := s.CreateList("リスト2", "")
+	s.AddItem(l2.ShareToken, "アイテム3", "", true)
+
+	listCount, itemCount = s.Stats()
+	if listCount != 2 {
+		t.Fatalf("expected 2 lists, got %d", listCount)
+	}
+	if itemCount != 3 {
+		t.Fatalf("expected 3 items, got %d", itemCount)
+	}
+
+	s.DeleteList(l1.ShareToken)
+	listCount, itemCount = s.Stats()
+	if listCount != 1 {
+		t.Fatalf("expected 1 list after deletion, got %d", listCount)
+	}
+	if itemCount != 1 {
+		t.Fatalf("expected 1 item after deletion, got %d", itemCount)
+	}
+}
+
 func TestGetEnv(t *testing.T) {
 	// 環境変数が設定されている場合
 	os.Setenv("TEST_VAR", "hello")
