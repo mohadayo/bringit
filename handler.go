@@ -58,7 +58,7 @@ var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 var validToken = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
 func registerRoutes(mux *http.ServeMux, store *Store) {
-	mux.HandleFunc("GET /health", handleHealth)
+	mux.HandleFunc("GET /health", handleHealth(store))
 	mux.HandleFunc("GET /", handleIndex)
 	mux.HandleFunc("POST /lists", handleCreateList(store))
 	mux.HandleFunc("GET /lists/{token}", handleShowList(store))
@@ -70,15 +70,20 @@ func registerRoutes(mux *http.ServeMux, store *Store) {
 	mux.HandleFunc("POST /lists/{token}/delete", handleDeleteList(store))
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{ //nolint:errcheck
-		"status":    "ok",
-		"service":   "bringit",
-		"uptime":    time.Since(startTime).Round(time.Second).String(),
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	})
+func handleHealth(store *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		listCount, itemCount := store.Stats()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck
+			"status":     "ok",
+			"service":    "bringit",
+			"uptime":     time.Since(startTime).Round(time.Second).String(),
+			"timestamp":  time.Now().UTC().Format(time.RFC3339),
+			"list_count": listCount,
+			"item_count": itemCount,
+		})
+	}
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {

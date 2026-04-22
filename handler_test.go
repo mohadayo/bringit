@@ -29,18 +29,45 @@ func TestHealthEndpoint(t *testing.T) {
 	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Fatalf("expected application/json content-type, got %s", ct)
 	}
-	var body map[string]string
+	var body map[string]any
 	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode JSON: %v", err)
 	}
 	if body["status"] != "ok" {
-		t.Fatalf("expected status=ok, got %s", body["status"])
+		t.Fatalf("expected status=ok, got %v", body["status"])
 	}
 	if body["service"] != "bringit" {
-		t.Fatalf("expected service=bringit, got %s", body["service"])
+		t.Fatalf("expected service=bringit, got %v", body["service"])
 	}
-	if body["timestamp"] == "" {
+	if body["timestamp"] == nil || body["timestamp"] == "" {
 		t.Fatal("expected non-empty timestamp")
+	}
+	if body["list_count"] != float64(0) {
+		t.Fatalf("expected list_count=0, got %v", body["list_count"])
+	}
+	if body["item_count"] != float64(0) {
+		t.Fatalf("expected item_count=0, got %v", body["item_count"])
+	}
+}
+
+func TestHealthEndpointWithData(t *testing.T) {
+	mux, store := setupTestServer()
+	l := store.CreateList("テスト", "")
+	store.AddItem(l.ShareToken, "テント", "太郎", true)
+	store.AddItem(l.ShareToken, "寝袋", "花子", false)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var body map[string]any
+	json.NewDecoder(w.Body).Decode(&body)
+
+	if body["list_count"] != float64(1) {
+		t.Fatalf("expected list_count=1, got %v", body["list_count"])
+	}
+	if body["item_count"] != float64(2) {
+		t.Fatalf("expected item_count=2, got %v", body["item_count"])
 	}
 }
 

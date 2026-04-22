@@ -124,6 +124,16 @@ func (s *Store) DeleteList(token string) bool {
 	return true
 }
 
+func (s *Store) Stats() (listCount int, itemCount int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	listCount = len(s.lists)
+	for _, l := range s.lists {
+		itemCount += len(l.Items)
+	}
+	return
+}
+
 func (s *Store) DeleteItem(token, itemID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
