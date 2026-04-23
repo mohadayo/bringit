@@ -203,3 +203,44 @@ func TestGetEnv(t *testing.T) {
 		t.Fatalf("expected default, got %s", v)
 	}
 }
+
+func TestGetEnvInt(t *testing.T) {
+	const key = "TEST_INT_VAR"
+
+	// 有効な数値が設定されている場合
+	os.Setenv(key, "42")
+	if v := getEnvInt(key, 10); v != 42 {
+		t.Fatalf("expected 42, got %d", v)
+	}
+
+	// 無効な値（数値でない文字列）の場合はデフォルト値を返す
+	os.Setenv(key, "abc")
+	if v := getEnvInt(key, 10); v != 10 {
+		t.Fatalf("expected default 10 for invalid value, got %d", v)
+	}
+
+	// 空文字列の場合はデフォルト値を返す
+	os.Setenv(key, "")
+	if v := getEnvInt(key, 99); v != 99 {
+		t.Fatalf("expected default 99 for empty value, got %d", v)
+	}
+
+	// 環境変数が未設定の場合はデフォルト値を返す
+	os.Unsetenv(key)
+	if v := getEnvInt(key, 50); v != 50 {
+		t.Fatalf("expected default 50 for unset var, got %d", v)
+	}
+
+	// 0の場合も正常に返す
+	os.Setenv(key, "0")
+	if v := getEnvInt(key, 10); v != 0 {
+		t.Fatalf("expected 0, got %d", v)
+	}
+
+	// 負の数の場合も正常に返す
+	os.Setenv(key, "-5")
+	if v := getEnvInt(key, 10); v != -5 {
+		t.Fatalf("expected -5, got %d", v)
+	}
+	os.Unsetenv(key)
+}
