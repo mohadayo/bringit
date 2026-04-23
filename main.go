@@ -63,11 +63,12 @@ func main() {
 
 	addr := ":" + getEnv("PORT", "8080")
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      securityHeaders(rateLimitMiddleware(rl)(requestLogger(mux))),
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              addr,
+		Handler:           securityHeaders(rateLimitMiddleware(rl)(requestLogger(mux))),
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// シグナルを受信してグレースフルシャットダウンするチャネル
