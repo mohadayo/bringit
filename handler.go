@@ -123,7 +123,12 @@ func handleCreateList(store *Store) http.HandlerFunc {
 		}
 		title = truncateRunes(title, maxTitleLen)
 		desc := truncateRunes(strings.TrimSpace(r.FormValue("description")), maxDescriptionLen)
-		l := store.CreateList(title, desc)
+		l, err := store.CreateList(title, desc)
+		if err != nil {
+			slog.Warn("リスト作成拒否", "error", err)
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		http.Redirect(w, r, "/lists/"+l.ShareToken, http.StatusSeeOther)
 	}
 }
@@ -170,7 +175,11 @@ func handleAddItem(store *Store) http.HandlerFunc {
 		name = truncateRunes(name, maxItemNameLen)
 		assignee := truncateRunes(strings.TrimSpace(r.FormValue("assignee")), maxAssigneeLen)
 		required := r.FormValue("required") == "on"
-		store.AddItem(token, name, assignee, required)
+		if _, err := store.AddItem(token, name, assignee, required); err != nil {
+			slog.Warn("アイテム追加拒否", "token", token, "error", err)
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		http.Redirect(w, r, "/lists/"+token, http.StatusSeeOther)
 	}
 }
