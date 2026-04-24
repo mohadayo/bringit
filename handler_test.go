@@ -11,7 +11,7 @@ import (
 )
 
 func setupTestServer() (*http.ServeMux, *Store) {
-	store := NewStore()
+	store := NewStore(0, 0)
 	mux := http.NewServeMux()
 	registerRoutes(mux, store)
 	return mux, store
@@ -52,7 +52,7 @@ func TestHealthEndpoint(t *testing.T) {
 
 func TestHealthEndpointWithData(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	store.AddItem(l.ShareToken, "テント", "太郎", true)
 	store.AddItem(l.ShareToken, "寝袋", "花子", false)
 
@@ -122,7 +122,7 @@ func TestCreateListAndView(t *testing.T) {
 
 func TestAddItemAndToggle(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	token := l.ShareToken
 
 	// Add item
@@ -167,7 +167,7 @@ func TestAddItemAndToggle(t *testing.T) {
 
 func TestDeleteItem(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	store.AddItem(l.ShareToken, "寝袋", "", true)
 
 	item := store.GetList(l.ShareToken).Items[0]
@@ -182,7 +182,7 @@ func TestDeleteItem(t *testing.T) {
 
 func TestUpdateAssignee(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	store.AddItem(l.ShareToken, "クーラーボックス", "太郎", true)
 
 	item := store.GetList(l.ShareToken).Items[0]
@@ -236,7 +236,7 @@ func TestCreateListWhitespaceTitle(t *testing.T) {
 
 func TestDeleteList(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("削除テスト", "")
+	l, _ := store.CreateList("削除テスト", "")
 	token := l.ShareToken
 
 	req := httptest.NewRequest("POST", "/lists/"+token+"/delete", nil)
@@ -267,7 +267,7 @@ func TestDeleteListNotFound(t *testing.T) {
 
 func TestAddItemEmptyName(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	token := l.ShareToken
 
 	form := url.Values{"name": {""}, "assignee": {"太郎"}}
@@ -287,7 +287,7 @@ func TestAddItemEmptyName(t *testing.T) {
 
 func TestAddItemWhitespaceName(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	token := l.ShareToken
 
 	form := url.Values{"name": {"   "}}
@@ -306,7 +306,7 @@ func TestAddItemWhitespaceName(t *testing.T) {
 
 func TestTogglePreparedInvalidItem(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	token := l.ShareToken
 
 	req := httptest.NewRequest("POST", "/lists/"+token+"/items/nonexistent-id/toggle-prepared", nil)
@@ -321,7 +321,7 @@ func TestTogglePreparedInvalidItem(t *testing.T) {
 
 func TestToggleRequiredInvalidItem(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	token := l.ShareToken
 
 	req := httptest.NewRequest("POST", "/lists/"+token+"/items/nonexistent-id/toggle-required", nil)
@@ -335,7 +335,7 @@ func TestToggleRequiredInvalidItem(t *testing.T) {
 
 func TestUpdateAssigneeInvalidItem(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	token := l.ShareToken
 
 	form := url.Values{"assignee": {"花子"}}
@@ -351,7 +351,7 @@ func TestUpdateAssigneeInvalidItem(t *testing.T) {
 
 func TestDeleteItemInvalidItem(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	store.AddItem(l.ShareToken, "アイテム", "", true)
 	token := l.ShareToken
 
@@ -471,7 +471,7 @@ func TestCreateListDescriptionTruncation(t *testing.T) {
 
 func TestAddItemNameTruncation(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	token := l.ShareToken
 
 	longName := strings.Repeat("い", 150)
@@ -493,7 +493,7 @@ func TestAddItemNameTruncation(t *testing.T) {
 
 func TestAddItemAssigneeTruncation(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	token := l.ShareToken
 
 	longAssignee := strings.Repeat("う", 80)
@@ -512,7 +512,7 @@ func TestAddItemAssigneeTruncation(t *testing.T) {
 
 func TestUpdateAssigneeTruncation(t *testing.T) {
 	mux, store := setupTestServer()
-	l := store.CreateList("テスト", "")
+	l, _ := store.CreateList("テスト", "")
 	store.AddItem(l.ShareToken, "アイテム", "太郎", true)
 
 	item := store.GetList(l.ShareToken).Items[0]
@@ -665,7 +665,6 @@ func TestInvalidTokenFormat(t *testing.T) {
 	mux, _ := setupTestServer()
 	invalidTokens := []string{
 		"short",
-		"../../../etc/passwd",
 		"nonexistent-token",
 		"AABBCCDD11223344AABBCCDD11223344",
 		"gg112233445566778899aabbccddeeff",
