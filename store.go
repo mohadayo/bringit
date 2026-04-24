@@ -10,13 +10,19 @@ import (
 
 // Store is a thread-safe in-memory store for lists.
 type Store struct {
-	mu     sync.RWMutex
-	lists  map[string]*List // keyed by ShareToken
-	nextID int
+	mu              sync.RWMutex
+	lists           map[string]*List // keyed by ShareToken
+	nextID          int
+	maxLists        int
+	maxItemsPerList int
 }
 
-func NewStore() *Store {
-	return &Store{lists: make(map[string]*List)}
+func NewStore(maxLists, maxItemsPerList int) *Store {
+	return &Store{
+		lists:           make(map[string]*List),
+		maxLists:        maxLists,
+		maxItemsPerList: maxItemsPerList,
+	}
 }
 
 func (s *Store) genID() string {
@@ -32,9 +38,16 @@ func generateToken() string {
 	return hex.EncodeToString(b)
 }
 
-func (s *Store) CreateList(title, description string) *List {
+var errMaxListsReached = fmt.Errorf("リスト数が上限に達しています")
+var errMaxItemsReached = fmt.Errorf("アイテム数が上限に達しています")
+
+func (s *Store) CreateList(title, description string) (*List, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.maxLists > 0 && len(s.lists) >= s.maxLists {
+		return nil, errMaxListsReached
+	}
 
 	l := &List{
 		ID:          s.genID(),
@@ -45,7 +58,7 @@ func (s *Store) CreateList(title, description string) *List {
 		CreatedAt:   time.Now(),
 	}
 	s.lists[l.ShareToken] = l
-	return l
+	return l, nil
 }
 
 func (s *Store) GetList(token string) *List {
@@ -54,13 +67,16 @@ func (s *Store) GetList(token string) *List {
 	return s.lists[token]
 }
 
-func (s *Store) AddItem(token, name, assignee string, required bool) *Item {
+func (s *Store) AddItem(token, name, assignee string, required bool) (*Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	l := s.lists[token]
 	if l == nil {
-		return nil
+		return nil, nil
+	}
+	if s.maxItemsPerList > 0 && len(l.Items) >= s.maxItemsPerList {
+		return nil, errMaxItemsReached
 	}
 	item := &Item{
 		ID:        s.genID(),
@@ -70,7 +86,7 @@ func (s *Store) AddItem(token, name, assignee string, required bool) *Item {
 		UpdatedAt: time.Now(),
 	}
 	l.Items = append(l.Items, item)
-	return item
+	return item, nil
 }
 
 func (s *Store) findItem(token, itemID string) *Item {
