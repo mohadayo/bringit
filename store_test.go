@@ -1,13 +1,14 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"sync"
 	"testing"
 )
 
 func TestNewStore(t *testing.T) {
-	s := NewStore()
+	s := NewStore(0, 0)
 	if s == nil {
 		t.Fatal("NewStore returned nil")
 	}
@@ -17,8 +18,11 @@ func TestNewStore(t *testing.T) {
 }
 
 func TestCreateListAndGetList(t *testing.T) {
-	s := NewStore()
-	l := s.CreateList("テスト", "説明")
+	s := NewStore(0, 0)
+	l, err := s.CreateList("テスト", "説明")
+	if err != nil {
+		t.Fatalf("CreateList returned error: %v", err)
+	}
 	if l == nil {
 		t.Fatal("CreateList returned nil")
 	}
@@ -45,24 +49,27 @@ func TestCreateListAndGetList(t *testing.T) {
 }
 
 func TestGetListNonExistent(t *testing.T) {
-	s := NewStore()
+	s := NewStore(0, 0)
 	if s.GetList("nonexistent") != nil {
 		t.Fatal("expected nil for non-existent token")
 	}
 }
 
 func TestAddItemToNonExistentList(t *testing.T) {
-	s := NewStore()
-	item := s.AddItem("nonexistent", "アイテム", "", true)
+	s := NewStore(0, 0)
+	item, _ := s.AddItem("nonexistent", "アイテム", "", true)
 	if item != nil {
 		t.Fatal("expected nil when adding item to non-existent list")
 	}
 }
 
 func TestAddItemAndRetrieve(t *testing.T) {
-	s := NewStore()
-	l := s.CreateList("リスト", "")
-	item := s.AddItem(l.ShareToken, "テントが必要", "太郎", true)
+	s := NewStore(0, 0)
+	l, _ := s.CreateList("リスト", "")
+	item, err := s.AddItem(l.ShareToken, "テントが必要", "太郎", true)
+	if err != nil {
+		t.Fatalf("AddItem returned error: %v", err)
+	}
 	if item == nil {
 		t.Fatal("AddItem returned nil")
 	}
@@ -81,29 +88,26 @@ func TestAddItemAndRetrieve(t *testing.T) {
 }
 
 func TestDeleteListReturnValues(t *testing.T) {
-	s := NewStore()
-	l := s.CreateList("削除テスト", "")
+	s := NewStore(0, 0)
+	l, _ := s.CreateList("削除テスト", "")
 	token := l.ShareToken
 
-	// 存在するリストの削除 → true
 	if !s.DeleteList(token) {
 		t.Fatal("expected DeleteList to return true for existing list")
 	}
-	// 再度削除 → false
 	if s.DeleteList(token) {
 		t.Fatal("expected DeleteList to return false for already-deleted list")
 	}
-	// GetListは nil を返す
 	if s.GetList(token) != nil {
 		t.Fatal("expected nil after deletion")
 	}
 }
 
 func TestUniqueTokens(t *testing.T) {
-	s := NewStore()
+	s := NewStore(0, 0)
 	tokens := make(map[string]struct{})
 	for i := 0; i < 100; i++ {
-		l := s.CreateList("リスト", "")
+		l, _ := s.CreateList("リスト", "")
 		if _, dup := tokens[l.ShareToken]; dup {
 			t.Fatalf("duplicate token generated: %s", l.ShareToken)
 		}
@@ -112,7 +116,7 @@ func TestUniqueTokens(t *testing.T) {
 }
 
 func TestConcurrentCreateList(t *testing.T) {
-	s := NewStore()
+	s := NewStore(0, 0)
 	const goroutines = 50
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
@@ -121,13 +125,12 @@ func TestConcurrentCreateList(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			l := s.CreateList("並行テスト", "")
+			l, _ := s.CreateList("並行テスト", "")
 			tokens[idx] = l.ShareToken
 		}(i)
 	}
 	wg.Wait()
 
-	// 全トークンが取得可能であることを確認
 	for _, tok := range tokens {
 		if s.GetList(tok) == nil {
 			t.Fatalf("list with token %s not found after concurrent creation", tok)
@@ -136,8 +139,8 @@ func TestConcurrentCreateList(t *testing.T) {
 }
 
 func TestConcurrentAddItem(t *testing.T) {
-	s := NewStore()
-	l := s.CreateList("並行アイテム追加", "")
+	s := NewStore(0, 0)
+	l, _ := s.CreateList("並行アイテム追加", "")
 	const goroutines = 50
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
@@ -157,18 +160,18 @@ func TestConcurrentAddItem(t *testing.T) {
 }
 
 func TestStoreStats(t *testing.T) {
-	s := NewStore()
+	s := NewStore(0, 0)
 
 	listCount, itemCount := s.Stats()
 	if listCount != 0 || itemCount != 0 {
 		t.Fatalf("expected 0/0, got %d/%d", listCount, itemCount)
 	}
 
-	l1 := s.CreateList("リスト1", "")
+	l1, _ := s.CreateList("リスト1", "")
 	s.AddItem(l1.ShareToken, "アイテム1", "", true)
 	s.AddItem(l1.ShareToken, "アイテム2", "", false)
 
-	l2 := s.CreateList("リスト2", "")
+	l2, _ := s.CreateList("リスト2", "")
 	s.AddItem(l2.ShareToken, "アイテム3", "", true)
 
 	listCount, itemCount = s.Stats()
@@ -189,15 +192,105 @@ func TestStoreStats(t *testing.T) {
 	}
 }
 
+func TestMaxListsLimit(t *testing.T) {
+	s := NewStore(3, 0)
+
+	for i := 0; i < 3; i++ {
+		_, err := s.CreateList("リスト", "")
+		if err != nil {
+			t.Fatalf("list %d should be allowed, got error: %v", i+1, err)
+		}
+	}
+
+	_, err := s.CreateList("超過リスト", "")
+	if !errors.Is(err, errMaxListsReached) {
+		t.Fatalf("expected errMaxListsReached, got %v", err)
+	}
+
+	listCount, _ := s.Stats()
+	if listCount != 3 {
+		t.Fatalf("expected 3 lists, got %d", listCount)
+	}
+}
+
+func TestMaxListsLimitAfterDelete(t *testing.T) {
+	s := NewStore(2, 0)
+
+	l1, _ := s.CreateList("リスト1", "")
+	s.CreateList("リスト2", "")
+
+	_, err := s.CreateList("超過リスト", "")
+	if err == nil {
+		t.Fatal("expected error when exceeding max lists")
+	}
+
+	s.DeleteList(l1.ShareToken)
+	_, err = s.CreateList("削除後のリスト", "")
+	if err != nil {
+		t.Fatalf("expected success after delete, got error: %v", err)
+	}
+}
+
+func TestMaxItemsPerListLimit(t *testing.T) {
+	s := NewStore(0, 3)
+	l, _ := s.CreateList("リスト", "")
+
+	for i := 0; i < 3; i++ {
+		_, err := s.AddItem(l.ShareToken, "アイテム", "", true)
+		if err != nil {
+			t.Fatalf("item %d should be allowed, got error: %v", i+1, err)
+		}
+	}
+
+	_, err := s.AddItem(l.ShareToken, "超過アイテム", "", true)
+	if !errors.Is(err, errMaxItemsReached) {
+		t.Fatalf("expected errMaxItemsReached, got %v", err)
+	}
+
+	items := s.GetList(l.ShareToken).Items
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(items))
+	}
+}
+
+func TestMaxItemsLimitPerListIndependent(t *testing.T) {
+	s := NewStore(0, 2)
+	l1, _ := s.CreateList("リスト1", "")
+	l2, _ := s.CreateList("リスト2", "")
+
+	s.AddItem(l1.ShareToken, "A1", "", true)
+	s.AddItem(l1.ShareToken, "A2", "", true)
+
+	_, err := s.AddItem(l2.ShareToken, "B1", "", true)
+	if err != nil {
+		t.Fatalf("list2 should allow items independently, got error: %v", err)
+	}
+}
+
+func TestZeroLimitsAreUnlimited(t *testing.T) {
+	s := NewStore(0, 0)
+
+	for i := 0; i < 10; i++ {
+		l, err := s.CreateList("リスト", "")
+		if err != nil {
+			t.Fatalf("unlimited store should allow any number of lists, got error: %v", err)
+		}
+		for j := 0; j < 10; j++ {
+			_, err := s.AddItem(l.ShareToken, "アイテム", "", true)
+			if err != nil {
+				t.Fatalf("unlimited store should allow any number of items, got error: %v", err)
+			}
+		}
+	}
+}
+
 func TestGetEnv(t *testing.T) {
-	// 環境変数が設定されている場合
 	os.Setenv("TEST_VAR", "hello")
 	defer os.Unsetenv("TEST_VAR")
 	if v := getEnv("TEST_VAR", "default"); v != "hello" {
 		t.Fatalf("expected hello, got %s", v)
 	}
 
-	// 環境変数が未設定の場合
 	os.Unsetenv("TEST_VAR")
 	if v := getEnv("TEST_VAR", "default"); v != "default" {
 		t.Fatalf("expected default, got %s", v)
@@ -207,37 +300,31 @@ func TestGetEnv(t *testing.T) {
 func TestGetEnvInt(t *testing.T) {
 	const key = "TEST_INT_VAR"
 
-	// 有効な数値が設定されている場合
 	os.Setenv(key, "42")
 	if v := getEnvInt(key, 10); v != 42 {
 		t.Fatalf("expected 42, got %d", v)
 	}
 
-	// 無効な値（数値でない文字列）の場合はデフォルト値を返す
 	os.Setenv(key, "abc")
 	if v := getEnvInt(key, 10); v != 10 {
 		t.Fatalf("expected default 10 for invalid value, got %d", v)
 	}
 
-	// 空文字列の場合はデフォルト値を返す
 	os.Setenv(key, "")
 	if v := getEnvInt(key, 99); v != 99 {
 		t.Fatalf("expected default 99 for empty value, got %d", v)
 	}
 
-	// 環境変数が未設定の場合はデフォルト値を返す
 	os.Unsetenv(key)
 	if v := getEnvInt(key, 50); v != 50 {
 		t.Fatalf("expected default 50 for unset var, got %d", v)
 	}
 
-	// 0の場合も正常に返す
 	os.Setenv(key, "0")
 	if v := getEnvInt(key, 10); v != 0 {
 		t.Fatalf("expected 0, got %d", v)
 	}
 
-	// 負の数の場合も正常に返す
 	os.Setenv(key, "-5")
 	if v := getEnvInt(key, 10); v != -5 {
 		t.Fatalf("expected -5, got %d", v)
