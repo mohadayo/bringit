@@ -54,7 +54,10 @@ func buildShareURL(r *http.Request, token string) string {
 }
 
 func main() {
-	store := NewStore()
+	store := NewStore(
+		getEnvInt("MAX_LISTS", 1000),
+		getEnvInt("MAX_ITEMS_PER_LIST", 200),
+	)
 	mux := http.NewServeMux()
 	registerRoutes(mux, store)
 
